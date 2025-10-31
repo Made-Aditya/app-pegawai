@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Employee;
+use App\Models\Department; // Import Model Departemen
+use App\Models\Position; // Import Model Jabatan
 use Illuminate\Http\Request;
 
 class EmployeeController extends Controller
@@ -12,7 +14,8 @@ class EmployeeController extends Controller
      */
     public function index()
     {
-        $employees = Employee::latest()->paginate(5);
+        // Menggunakan with() untuk eager loading relasi Departemen dan Jabatan
+        $employees = Employee::with(['department', 'position'])->latest()->paginate(5);
 
         return view('employees.index', compact('employees'));
     }
@@ -22,7 +25,11 @@ class EmployeeController extends Controller
      */
     public function create()
     {
-        return view('employees.create');
+        // Ambil data untuk dropdown (Departemen dan Jabatan)
+        $departments = Department::all();
+        $positions = Position::all();
+        
+        return view('employees.create', compact('departments', 'positions'));
     }
 
     /**
@@ -32,15 +39,20 @@ class EmployeeController extends Controller
     {
         $request->validate([
             'nama_lengkap'  => 'required|string|max:255',
-            'email'         => 'required|email|max:255',
+            'email'         => 'required|email|max:255|unique:employees,email', // Tambahkan unique check
             'nomor_telepon' => 'required|string|max:20',
             'tanggal_lahir' => 'required|date',
             'alamat'        => 'required|string|max:255',
             'tanggal_masuk' => 'required|date',
             'status'        => 'required|string|max:50',
+            
+            // VALIDASI FOREIGN KEY BARU
+            'department_id' => 'required|exists:departments,id', // Harus ada di tabel departments
+            'jabatan_id'    => 'required|exists:positions,id', // Harus ada di tabel positions
         ]);
+        
         Employee::create($request->all());
-        return redirect()->route('employees.index');
+        return redirect()->route('employees.index')->with('success', 'Pegawai berhasil ditambahkan!');
     }
 
     /**
@@ -48,7 +60,8 @@ class EmployeeController extends Controller
      */
     public function show(string $id)
     {
-        $employee = Employee::find($id);
+        // Gunakan with() untuk eager loading relasi saat menampilkan detail
+        $employee = Employee::with(['department', 'position'])->findOrFail($id);
         return view('employees.show', compact('employee'));
     }
 
@@ -57,8 +70,12 @@ class EmployeeController extends Controller
      */
     public function edit(string $id)
     {
-        $employee = Employee::find($id);
-        return view('employees.edit', compact('employee'));
+        $employee = Employee::findOrFail($id);
+        // Ambil data untuk dropdown (Departemen dan Jabatan)
+        $departments = Department::all();
+        $positions = Position::all();
+        
+        return view('employees.edit', compact('employee', 'departments', 'positions'));
     }
 
     /**
@@ -68,24 +85,21 @@ class EmployeeController extends Controller
     {
         $request->validate([
             'nama_lengkap'  => 'required|string|max:255',
-            'email'         => 'required|email|max:255',
+            'email'         => 'required|email|max:255|unique:employees,email,' . $id, // Unique check, kecuali dirinya sendiri
             'nomor_telepon' => 'required|string|max:20',
             'tanggal_lahir' => 'required|date',
             'alamat'        => 'required|string|max:255',
             'tanggal_masuk' => 'required|date',
             'status'        => 'required|string|max:50',
+            
+            // VALIDASI FOREIGN KEY BARU
+            'department_id' => 'required|exists:departments,id',
+            'jabatan_id'    => 'required|exists:positions,id',
         ]);
+        
         $employee = Employee::findOrFail($id);
-        $employee->update($request->only([
-            'nama_lengkap',
-            'email',
-            'nomor_telepon',
-            'tanggal_lahir',
-            'alamat',
-            'tanggal_masuk',
-            'status'
-        ]));
-        return redirect()->route('employees.index');
+        $employee->update($request->all());
+        return redirect()->route('employees.index')->with('success', 'Pegawai berhasil diperbarui!');
     }
 
     /**
@@ -93,8 +107,8 @@ class EmployeeController extends Controller
      */
     public function destroy(string $id)
     {
-        $employee = Employee::find($id);
+        $employee = Employee::findOrFail($id);
         $employee->delete();
-        return redirect()->route('employees.index');
+        return redirect()->route('employees.index')->with('success', 'Pegawai berhasil dihapus!');
     }
 }
